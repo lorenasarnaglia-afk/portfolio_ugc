@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#b3342b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Special+Elite&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,700;0,800;1,400;1,700&display=swap" rel="stylesheet">
 
 <style>
 /* ==========================================================
@@ -25,8 +25,8 @@
   --cafe:#3b2416;
   --pauta:rgba(47,79,158,.17);
   --sombra:#1c1410;
-  --titulo:"Special Elite","Courier New",monospace;
-  --corpo:"Courier Prime","Courier New",monospace;
+  --titulo:"Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --corpo:"Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
   --linha:30px;
   --topo:66px;
 }
@@ -53,7 +53,7 @@ body.travado{overflow:hidden}
 
 img{max-width:100%;display:block}
 a{color:inherit}
-h1,h2,h3{font-family:var(--titulo);font-weight:400;margin:0;line-height:1.15;overflow-wrap:anywhere}
+h1,h2,h3{font-family:var(--titulo);font-weight:800;letter-spacing:-.025em;margin:0;line-height:1.15;overflow-wrap:anywhere}
 p{margin:0}
 ul{margin:0;padding:0;list-style:none}
 
@@ -438,6 +438,13 @@ ul{margin:0;padding:0;list-style:none}
 }
 .fechar:hover{background:var(--vermelho);color:var(--ficha)}
 .modal .ficha-topo-espaco{height:0}
+
+/* ---------- Ajustes da fonte sem serifa ---------- */
+.marca,.marca b,.numero-grande,.destaque-numero,.servico-numero,.resultado-valor,.rodape-nome,.fechar{font-weight:800;letter-spacing:-.02em}
+.capa .frase,.depoimento strong,.selo{font-weight:700}
+.assinatura{font-weight:700;font-style:italic}
+.subtitulo h3{letter-spacing:.2em}
+.legenda{font-style:normal;font-weight:500}
 
 /* ---------- Entrada suave ---------- */
 .js .rev{opacity:0;transform:translateY(22px);transition:opacity .7s ease,transform .7s ease}
