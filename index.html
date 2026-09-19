@@ -173,12 +173,6 @@ ul{margin:0;padding:0;list-style:none}
 }
 .capa .texto{max-width:520px;margin-bottom:28px}
 
-.numeros-capa{
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-  margin-top:34px;padding-top:22px;border-top:2px dashed var(--cafe);
-}
-.numeros-capa li{padding:0 12px;text-align:center}
-.numeros-capa li+li{border-left:2px dashed rgba(59,36,22,.5)}
 .numero-grande{
   display:block;font-family:var(--titulo);line-height:1.1;color:var(--vermelho);
   font-size:clamp(1.5rem,5vw,2.8rem);
@@ -234,7 +228,6 @@ ul{margin:0;padding:0;list-style:none}
   .capa .ficha{padding:26px 20px 24px}
   .capa-grade{grid-template-columns:minmax(0,1fr);gap:40px}
   .foto-caixa{max-width:340px}
-  .numeros-capa li{padding:0 6px}
 }
 
 /* ---------- Faixa de marcas ---------- */
@@ -550,8 +543,6 @@ ul{margin:0;padding:0;list-style:none}
           <div class="mancha" aria-hidden="true"></div>
         </div>
       </div>
-
-      <ul class="numeros-capa" id="numeros-capa" aria-label="Números principais"></ul>
     </div>
   </div>
 </section>
@@ -923,10 +914,6 @@ const DEPOIMENTOS = [
     return '<span class="numero-grande"><span class="contador" data-alvo="' + m.valor + '" data-sufixo="' + esc(m.sufixo) + '">' +
       inicial + '</span>' + esc(m.sufixo) + '</span>';
   }
-  $('numeros-capa').innerHTML = METRICAS.filter(function (m) { return m.capa; }).map(function (m) {
-    return '<li>' + htmlContador(m) + '<span class="numero-rotulo">' + esc(m.rotulo) + '</span></li>';
-  }).join('');
-
   $('metricas-lista').innerHTML = METRICAS.map(function (m) {
     return '<div class="ficha ficha--mini metrica rev">' + htmlContador(m) +
       '<span class="numero-rotulo">' + esc(m.rotulo) + '</span></div>';
