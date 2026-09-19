@@ -13,11 +13,11 @@
 <style>
 /* ==========================================================
    FICHAS DE RECEITA
-   Cores: papel envelhecido, fichas quase brancas, vermelho,
+   Cores: fundo azul claro, fichas quase brancas, vermelho,
    azul caneta e marrom café.
    ========================================================== */
 :root{
-  --papel:#f4ead6;
+  --papel:#d9e8f6;
   --ficha:#fffcf3;
   --vermelho:#b3342b;
   --vermelho-escuro:#8f2620;
@@ -44,9 +44,9 @@ body{
   color:var(--cafe);
   background-color:var(--papel);
   background-image:
-    radial-gradient(circle at 12% 8%,rgba(150,105,50,.10),transparent 38%),
-    radial-gradient(circle at 88% 55%,rgba(150,105,50,.09),transparent 40%),
-    radial-gradient(circle at 20% 95%,rgba(150,105,50,.08),transparent 35%);
+    radial-gradient(circle at 12% 8%,rgba(255,255,255,.35),transparent 38%),
+    radial-gradient(circle at 88% 55%,rgba(70,130,200,.10),transparent 40%),
+    radial-gradient(circle at 20% 95%,rgba(255,255,255,.28),transparent 35%);
   overflow-x:hidden;
 }
 body.travado{overflow:hidden}
@@ -110,7 +110,7 @@ ul{margin:0;padding:0;list-style:none}
 .botao:hover{transform:translate(2px,2px);box-shadow:3px 3px 0 var(--sombra);background:var(--vermelho-escuro)}
 .botao:active{transform:translate(5px,5px);box-shadow:0 0 0 var(--sombra)}
 .botao--claro{background:var(--ficha);color:var(--cafe)}
-.botao--claro:hover{background:#f6ecd2}
+.botao--claro:hover{background:#e6f0fa}
 .botoes{display:flex;flex-wrap:wrap;gap:18px 20px}
 
 /* ---------- Topo e menu ---------- */
