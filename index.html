@@ -899,7 +899,9 @@ const DEPOIMENTOS = [
 
   /* ---------- Faixa de marcas ---------- */
   (function () {
-    var itens = MARCAS.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('');
+    var unidade = MARCAS.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('');
+    /* Poucas marcas não cobrem a tela larga: repete a lista para a faixa não ficar com buraco. No celular ela não anima. */
+    var itens = window.innerWidth > 920 ? unidade + unidade : unidade;
     $('faixa').innerHTML =
       '<div class="faixa-trilho"><ul>' + itens + '</ul><ul aria-hidden="true">' + itens + '</ul></div>';
   })();
