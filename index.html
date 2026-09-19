@@ -557,7 +557,6 @@ ul{margin:0;padding:0;list-style:none}
 <section class="secao" id="destaques" aria-labelledby="titulo-destaques">
   <div class="miolo">
     <div class="cab rev">
-      <span class="etiqueta">Ficha nº 03 · Destaques</span>
       <h2 id="titulo-destaques">Conteúdos de destaque</h2>
       <p class="legenda">Três vídeos para assistir agora. Toque no card para abrir.</p>
     </div>
@@ -569,7 +568,6 @@ ul{margin:0;padding:0;list-style:none}
 <section class="secao" id="trabalhos" aria-labelledby="titulo-trabalhos">
   <div class="miolo">
     <div class="cab rev">
-      <span class="etiqueta">Ficha nº 04 · Trabalhos</span>
       <h2 id="titulo-trabalhos">Trabalhos por nicho</h2>
       <p class="legenda">Escolha um nicho e veja só o que eu já fiz nele.</p>
     </div>
@@ -583,7 +581,6 @@ ul{margin:0;padding:0;list-style:none}
 <section class="secao" id="servicos" aria-labelledby="titulo-servicos">
   <div class="miolo">
     <div class="cab rev">
-      <span class="etiqueta">Ficha nº 05 · Serviços</span>
       <h2 id="titulo-servicos">Como eu te ajudo</h2>
       <p class="legenda">Seis jeitos de trabalhar juntas. Escolha um ou monte o seu pacote.</p>
     </div>
@@ -595,7 +592,6 @@ ul{margin:0;padding:0;list-style:none}
 <section class="secao" id="contato" aria-labelledby="titulo-contato">
   <div class="miolo">
     <div class="cab rev">
-      <span class="etiqueta">Ficha nº 06 · Contato</span>
       <h2 id="titulo-contato">Bora criar juntos</h2>
       <p class="legenda">Conte sobre a sua marca e o produto. Eu respondo com carinho.</p>
     </div>
@@ -738,14 +734,13 @@ const NICHOS = [
 /* Três conteúdos de destaque.
    video: cole o link do vídeo do YouTube (Shorts ou normal). Ele toca aqui dentro do portfólio, sem levar ninguém ao YouTube.
           O vídeo precisa estar como Público ou Não listado, com a incorporação permitida.
-   capa: deixe '' para usar a capa do próprio YouTube, ou coloque o caminho de uma imagem vertical 9:16 (exemplo: 'capa-01.jpg').
-   numero e rotulo: os números de views ainda são placeholder, troque pelos reais. */
+   capa: deixe '' para usar a capa do próprio YouTube, ou coloque o caminho de uma imagem vertical 9:16 (exemplo: 'capa-01.jpg'). */
 const DESTAQUES = [
-  { video:'https://www.youtube.com/shorts/xIivYTer5m0', capa:'', numero:'+00K', rotulo:'views no reels',
+  { video:'https://www.youtube.com/shorts/xIivYTer5m0', capa:'',
     titulo:'Serumnete Garnier', contexto:'Vídeo UGC de beleza em formato vertical.' },
-  { video:'https://www.youtube.com/shorts/9daVtiog3uw', capa:'', numero:'+00K', rotulo:'views no reels',
+  { video:'https://www.youtube.com/shorts/9daVtiog3uw', capa:'',
     titulo:'Dove Linha UV Repair', contexto:'Vídeo UGC de beleza em formato vertical.' },
-  { video:'https://www.youtube.com/shorts/zdnhZPK5_NA', capa:'', numero:'+00K', rotulo:'views no reels',
+  { video:'https://www.youtube.com/shorts/zdnhZPK5_NA', capa:'',
     titulo:'Castilla Acessórios', contexto:'Vídeo UGC de beleza em formato vertical.' }
 ];
 
@@ -856,8 +851,6 @@ const SERVICOS = [
     return '<a class="destaque rev" href="' + esc(href) + '" data-video="' + esc(id) + '" data-titulo="' + esc(d.titulo) + '" data-etiqueta="Conteúdo de destaque" aria-haspopup="dialog" aria-label="Assistir: ' + esc(d.titulo) + '">' +
       capa +
       '<div class="destaque-corpo">' +
-        '<span class="destaque-numero">' + esc(d.numero) + '</span>' +
-        '<span class="destaque-rotulo">' + esc(d.rotulo) + '</span>' +
         '<h3>' + esc(d.titulo) + '</h3>' +
         '<p class="destaque-contexto">' + esc(d.contexto) + '</p>' +
       '</div></a>';
