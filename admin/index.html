@@ -1115,6 +1115,8 @@ async function telaMarcas(el) {
   var res = await Promise.all([ler('marcas'), ler('marcados')]);
   estado.marcas = res[0];
   estado.colSel = estado.marcas.length > 0 && ('selecionada' in estado.marcas[0]) && ('enviada_em' in estado.marcas[0]);
+  estado.colNicho = estado.marcas.length > 0 && ('nicho' in estado.marcas[0]);
+  if (!estado.colNicho) estado.marcasOrg = 'az';
   estado.marcasFav = new Set(res[1].filter(function (l) { return String(l.chave).indexOf('marca:') === 0; }).map(function (l) { return String(l.chave).slice(6); }));
   el.innerHTML =
     '<div class="barra">' +
@@ -1123,6 +1125,10 @@ async function telaMarcas(el) {
         SITUACOES.map(function (s) { return '<option value="' + s.v + '"' + (estado.marcasFiltro === s.v ? ' selected' : '') + '>' + s.t + '</option>'; }).join('') + '</select>' +
       '<button class="btn" type="button" id="m-fav" aria-pressed="' + !!estado.marcasSoFav + '" title="Mostrar só as marcas com estrela">' + ic('estrela') + 'Só favoritas</button>' +
       '<span class="espaco"></span>' +
+      (estado.colNicho ? '<select id="m-org" style="width:auto" aria-label="Organizar por nicho" title="Organizar a planilha por nicho ou mostrar só um nicho">' +
+        '<option value="az">Organizar: A a Z</option><option value="nicho"' + (estado.marcasOrg === 'nicho' ? ' selected' : '') + '>Organizar: por nicho</option>' +
+        '<optgroup label="Mostrar só o nicho">' + listaNichos().map(function (n) { return '<option value="f:' + esc(n) + '"' + (estado.marcasOrg === 'f:' + n ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') +
+        '<option value="f:"' + (estado.marcasOrg === 'f:' ? ' selected' : '') + '>Sem nicho</option></optgroup></select>' : '') +
       '<button class="btn" type="button" id="m-importar" title="Sobe uma planilha CSV e coloca os contatos na aba Marcas">' + ic('subir') + 'Importar planilha</button>' +
       '<input type="file" id="m-arquivo" accept=".csv,.tsv,.txt,text/csv,text/plain" style="display:none" aria-label="Escolher planilha CSV">' +
       '<button class="btn" type="button" id="m-csv">' + ic('baixar') + 'Baixar CSV</button>' +
@@ -1135,6 +1141,7 @@ async function telaMarcas(el) {
     e.currentTarget.setAttribute('aria-pressed', String(!!estado.marcasSoFav));
     desenharMarcas();
   });
+  if ($('#m-org')) $('#m-org').addEventListener('change', function (e) { estado.marcasOrg = e.target.value; desenharMarcas(); });
   $('#m-novo').addEventListener('click', function () { formMarca(null); });
   $('#m-importar').addEventListener('click', escolherOrigemImportacao);
   $('#m-arquivo').addEventListener('change', function (e) { abrirImportacao(e.target.files && e.target.files[0]); });
@@ -1155,11 +1162,19 @@ function desenharMarcas() {
   var lista = estado.marcas.filter(function (m) {
     if (estado.marcasSoFav && !fav.has(String(m.id))) return false;
     if (estado.marcasFiltro !== 'todas' && m.situacao !== estado.marcasFiltro) return false;
+    var org = estado.colNicho ? (estado.marcasOrg || 'az') : 'az';
+    if (org.indexOf('f:') === 0 && norm(m.nicho || '') !== norm(org.slice(2))) return false;
     if (!q) return true;
     return norm(m.nome).indexOf(q) >= 0 || norm(m.instagram).replace('@', '').indexOf(q) >= 0 || norm(m.email).indexOf(q) >= 0;
   }).sort(function (a, b) {
     var fa = fav.has(String(a.id)) ? 0 : 1, fb = fav.has(String(b.id)) ? 0 : 1; /* favoritas sempre em cima */
-    return fa - fb || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    var porNicho = 0;
+    if (estado.colNicho && estado.marcasOrg === 'nicho') {
+      var ordem = listaNichos().map(norm);
+      var ia = a.nicho ? ordem.indexOf(norm(a.nicho)) : 999, ib = b.nicho ? ordem.indexOf(norm(b.nicho)) : 999; /* sem nicho por último */
+      porNicho = ia - ib;
+    }
+    return fa - fb || porNicho || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
   });
   estado.marcasVisiveis = lista;
   desenharSelbar();
@@ -1169,7 +1184,7 @@ function desenharMarcas() {
     alvo.innerHTML = '<div class="cartao"><p class="vazio">' + (estado.marcasSoFav && !fav.size ? 'Você ainda não favoritou nenhuma marca. Clique na estrela ao lado do nome para fixar a marca no topo.' : 'Nenhuma marca encontrada com essa busca ou filtro.') + '</p></div>';
     return;
   }
-  alvo.innerHTML = '<div class="rolagem"><table><thead><tr>' + (estado.colSel ? '<th class="col-sel"><span class="sr">Selecionar para o disparo</span></th>' : '') + '<th class="col-estrela"><span class="sr">Favorita</span></th><th class="col-marca">Marca</th><th>Instagram</th><th>E-mail</th><th class="col-tel">Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="col-lixo"><span class="sr">Excluir</span></th></tr></thead><tbody>' +
+  alvo.innerHTML = '<div class="rolagem"><table><thead><tr>' + (estado.colSel ? '<th class="col-sel"><span class="sr">Selecionar para o disparo</span></th>' : '') + '<th class="col-estrela"><span class="sr">Favorita</span></th><th class="col-marca">Marca</th>' + (estado.colNicho ? '<th>Nicho</th>' : '') + '<th>Instagram</th><th>E-mail</th><th class="col-tel">Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="col-lixo"><span class="sr">Excluir</span></th></tr></thead><tbody>' +
     lista.map(function (m) {
       var u = usuarioInsta(m.instagram), w = linkWhats(m.telefone);
       var eFav = fav.has(String(m.id));
@@ -1178,6 +1193,7 @@ function desenharMarcas() {
         (estado.colSel ? '<td class="col-sel"><input type="checkbox" data-sel="1"' + (m.selecionada ? ' checked' : '') + (semEmail ? ' disabled title="Marca de exemplo"' : (prEmailOk(m.email) ? ' title="Selecionar para o disparo de e-mails"' : ' title="Selecionar (esta marca não tem e-mail, então não recebe o disparo)"')) + ' aria-label="Selecionar ' + esc(m.nome) + ' para o disparo"></td>' : '') +
         '<td class="col-estrela"><button class="ib estrela' + (eFav ? ' on' : '') + '" type="button" data-fav="1" aria-pressed="' + eFav + '" aria-label="' + (eFav ? 'Tirar dos favoritos: ' : 'Favoritar: ') + esc(m.nome) + '" title="' + (eFav ? 'Tirar dos favoritos' : 'Favoritar e fixar no topo') + '">' + ic('estrela') + '</button></td>' +
         '<td class="col-marca"><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
+        (estado.colNicho ? '<td class="nb">' + esc(m.nicho || '') + '</td>' : '') +
         '<td class="nb">' + (u ? '<a href="https://instagram.com/' + esc(u) + '" target="_blank" rel="noopener" title="Abrir o Instagram">' + ic('insta') + ' @' + esc(u) + '</a>' : esc(m.instagram)) + '</td>' +
         '<td class="nb">' + (m.email ? '<a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' : '') + '</td>' +
         '<td class="col-tel">' + String(m.telefone || '').split(/\s*\/\s*/).map(function (t, i, todos) {
@@ -1267,21 +1283,45 @@ async function marcarSelecao(ids, valor) {
   }
 }
 
+var NICHOS_PADRAO = ['Casa e Decoração', 'Beleza', 'Aplicativos e Sites'];
+/* Os nichos que já existem: os padrão mais qualquer um que você tenha criado */
+function listaNichos() {
+  var lista = NICHOS_PADRAO.slice();
+  estado.marcas.forEach(function (x) {
+    var n = String(x.nicho || '').trim();
+    if (n && !lista.some(function (o) { return norm(o) === norm(n); })) lista.push(n);
+  });
+  return lista;
+}
 function formMarca(m) {
-  formulario({
+  var temNicho = estado.marcas.length > 0 && ('nicho' in estado.marcas[0]);
+  var nichoAtual = m ? String(m.nicho || '') : '';
+  var nichos = listaNichos();
+  if (nichoAtual && !nichos.some(function (o) { return norm(o) === norm(nichoAtual); })) nichos.push(nichoAtual);
+  var campos = [
+    { k: 'nome', label: 'Marca', obrigatorio: true, larga: true },
+    { k: 'instagram', label: 'Instagram', dica: '@marca' },
+    { k: 'email', label: 'E-mail', tipo: 'email' },
+    { k: 'telefone', label: 'Telefone', dica: '(00) 00000-0000' },
+    { k: 'situacao', label: 'Situação', tipo: 'select', opcoes: SITUACOES.map(function (s) { return { v: s.v, t: s.t }; }) }
+  ];
+  if (temNicho) campos.push({ k: 'nicho', label: 'Nicho', tipo: 'select', opcoes: [{ v: '', t: 'Sem nicho' }].concat(nichos.map(function (n) { return { v: n, t: n }; })).concat([{ v: '__novo', t: '+ Adicionar novo nicho…' }]) });
+  campos.push({ k: 'ultimo_contato', label: 'Último contato', tipo: 'date' });
+  campos.push({ k: 'obs', label: 'Observação', tipo: 'textarea', larga: true });
+  var modal = formulario({
     titulo: m ? 'Editar marca' : 'Adicionar marca',
     valores: m || { situacao: 'lead' },
-    campos: [
-      { k: 'nome', label: 'Marca', obrigatorio: true, larga: true },
-      { k: 'instagram', label: 'Instagram', dica: '@marca' },
-      { k: 'email', label: 'E-mail', tipo: 'email' },
-      { k: 'telefone', label: 'Telefone', dica: '(00) 00000-0000' },
-      { k: 'situacao', label: 'Situação', tipo: 'select', opcoes: SITUACOES.map(function (s) { return { v: s.v, t: s.t }; }) },
-      { k: 'ultimo_contato', label: 'Último contato', tipo: 'date' },
-      { k: 'obs', label: 'Observação', tipo: 'textarea', larga: true }
-    ],
+    campos: campos,
     onSalvar: async function (d) {
+      if (temNicho && d.nicho === '__novo') {
+        var campoNovo = modal.querySelector('#f-nicho-novo');
+        d.nicho = campoNovo ? campoNovo.value.trim() : '';
+        if (!d.nicho) throw new Error('Escreva o nome do novo nicho, ou escolha um da lista.');
+        var igual = listaNichos().filter(function (o) { return norm(o) === norm(d.nicho); })[0];
+        if (igual) d.nicho = igual;
+      }
       var dados = { nome: d.nome, instagram: d.instagram, email: d.email, telefone: d.telefone, situacao: d.situacao, obs: d.obs, ultimo_contato: d.ultimo_contato || null };
+      if (temNicho) dados.nicho = d.nicho || null;
       if (m) await gravar('marcas', sb.from('marcas').update(dados).eq('id', m.id));
       else await gravar('marcas', sb.from('marcas').insert(dados));
       toast('Marca salva.'); desenharTela();
@@ -1292,6 +1332,18 @@ function formMarca(m) {
       toast('Marca apagada.'); desenharTela();
     } : null,
     textoApagar: 'Apagar esta marca da sua base? Não dá para desfazer.'
+  });
+  var selNicho = modal.querySelector('#f-nicho');
+  if (selNicho) selNicho.addEventListener('change', function () {
+    var caixa = modal.querySelector('#f-nicho-novo');
+    if (selNicho.value === '__novo') {
+      if (!caixa) {
+        caixa = document.createElement('input');
+        caixa.type = 'text'; caixa.id = 'f-nicho-novo'; caixa.placeholder = 'Nome do novo nicho'; caixa.style.marginTop = '6px';
+        selNicho.parentNode.appendChild(caixa);
+      }
+      caixa.focus();
+    } else if (caixa) caixa.remove();
   });
 }
 
