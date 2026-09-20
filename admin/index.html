@@ -170,7 +170,8 @@ td.num,th.num{text-align:right}
 td.nb{white-space:nowrap}
 td a .i{vertical-align:-3px;margin-right:2px}
 th.col-marca,td.col-marca{min-width:230px}
-th.col-tel,td.col-tel{width:1%;min-width:150px;max-width:170px;white-space:normal}
+th.col-tel,td.col-tel{width:1%;min-width:150px}
+span.nb{white-space:nowrap}
 td.obs{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--azul)}
 td.acoes{white-space:nowrap;text-align:right}
 .linkbtn{background:none;border:0;padding:0;font-weight:600;text-align:left;cursor:pointer;color:var(--chumbo)}
@@ -1179,7 +1180,9 @@ function desenharMarcas() {
         '<td class="col-marca"><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
         '<td class="nb">' + (u ? '<a href="https://instagram.com/' + esc(u) + '" target="_blank" rel="noopener" title="Abrir o Instagram">' + ic('insta') + ' @' + esc(u) + '</a>' : esc(m.instagram)) + '</td>' +
         '<td class="nb">' + (m.email ? '<a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' : '') + '</td>' +
-        '<td class="col-tel">' + esc(m.telefone) + (w ? ' <a class="ib" href="' + esc(w) + '" target="_blank" rel="noopener" aria-label="Abrir o WhatsApp de ' + esc(m.nome) + '" title="Abrir o WhatsApp">' + ic('whats') + '</a>' : '') + '</td>' +
+        '<td class="col-tel">' + String(m.telefone || '').split(/\s*\/\s*/).map(function (t, i, todos) {
+          return '<span class="nb">' + esc(t) + (w && i === todos.length - 1 ? ' <a class="ib" href="' + esc(w) + '" target="_blank" rel="noopener" aria-label="Abrir o WhatsApp de ' + esc(m.nome) + '" title="Abrir o WhatsApp">' + ic('whats') + '</a>' : '') + '</span>';
+        }).join('<br>') + '</td>' +
         '<td>' + pilSituacao(m.situacao) + '</td>' +
         '<td class="obs" title="' + esc(m.obs) + '">' + esc(m.obs) + '</td>' +
         '<td class="nb">' + fmtData(m.ultimo_contato) + '</td>' +
