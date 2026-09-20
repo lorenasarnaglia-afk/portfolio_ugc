@@ -1110,7 +1110,7 @@ const SERVICOS = [
   function criarPrevia(a, autoplay) {
     var id = a.getAttribute('data-video');
     var capa = a.querySelector('.destaque-capa, .trabalho-capa');
-    if (!id || !capa) return null;
+    if (!id || !capa || !capa.clientWidth) return null;
     previas.slice().forEach(function (p) { if (!document.body.contains(p.a)) descartarPrevia(p); });
     while (previas.length >= LIMITE_PREVIAS) {
       var velha = previas.filter(function (p) { return !p.quer; })[0];
@@ -1125,13 +1125,19 @@ const SERVICOS = [
     f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=' + (autoplay ? 1 : 0) + '&mute=1&controls=0&loop=1&playlist=' + id +
       '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
-    var st = { a: a, frame: f, capa: capa, pronto: false, quer: !!autoplay, poll: null };
+    /* O YouTube escolhe a qualidade pelo tamanho do player. Por isso o player é montado maior
+       (até 2x) e reduzido por transform, o que entrega um vídeo bem mais nítido no card. */
+    var k = (window.devicePixelRatio || 1) >= 2 ? 2 : 1.6;
+    var w = Math.round(capa.clientWidth * k), h = Math.round(w * 16 / 9);
+    var zoom = capa.classList.contains('destaque-capa') ? 1.25 : 1;
+    f.style.cssText = 'left:50%;top:50%;width:' + w + 'px;height:' + h + 'px;max-width:none;transform:translate(-50%,-50%) scale(' + (zoom / k) + ')';
+    var st = { a: a, frame: f, capa: capa, pronto: false, quer: !!autoplay, visivel: !!autoplay, poll: null };
     f.addEventListener('load', function () {
       var n = 0;
       st.poll = setInterval(function () {
-        if (st.pronto || ++n > 40) { clearInterval(st.poll); return; }
+        if (st.pronto || ++n > 60) { clearInterval(st.poll); return; }
         try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'previa', channel: 'widget' }), '*'); } catch (err) {}
-      }, 250);
+      }, 150);
     });
     capa.appendChild(f);
     previas.push(st);
@@ -1148,7 +1154,7 @@ const SERVICOS = [
     if (st.pronto) { cmdPrevia(st, 'pauseVideo'); cmdPrevia(st, 'seekTo', [0, true]); }
   }
   function pararTodasPrevias() { previas.slice().forEach(pararPrevia); }
-  function retomarPrevias() { previas.slice().forEach(tocarPrevia); }
+  function retomarPrevias() { previas.slice().forEach(function (st) { if (st.visivel) tocarPrevia(st); }); }
 
   /* O vídeo só aparece por cima da capa depois que o YouTube avisa que ele está tocando (estado 1) */
   window.addEventListener('message', function (e) {
@@ -1171,21 +1177,37 @@ const SERVICOS = [
     }
   });
 
-  /* Prepara os cards que aparecem na tela (e solta os que saem) */
-  var obsPrevia = (podePrevia && 'IntersectionObserver' in window) ? new IntersectionObserver(function (itens) {
+  /* Dois observadores: o "perto" carrega o vídeo pausado bem antes de o card chegar à tela (mais ou menos
+     dois telões de distância); o "tela" manda tocar quando o card aparece e pausa quando sai. */
+  var temIO = podePrevia && 'IntersectionObserver' in window;
+  var obsPerto = temIO ? new IntersectionObserver(function (itens) {
     itens.forEach(function (i) {
       var st = acharPrevia(i.target);
-      if (i.isIntersecting) { if (!st) criarPrevia(i.target, true); }
+      if (i.isIntersecting) { if (!st) criarPrevia(i.target, false); }
       else if (st) descartarPrevia(st);
     });
-  }, { threshold: 0.25, rootMargin: '120px 0px' }) : null;
+  }, { rootMargin: '1600px 0px' }) : null;
+  var obsTela = temIO ? new IntersectionObserver(function (itens) {
+    itens.forEach(function (i) {
+      var st = acharPrevia(i.target);
+      if (i.isIntersecting) {
+        if (!st) st = criarPrevia(i.target, true);
+        if (st) { st.visivel = true; if (!pFundo.hidden) return; tocarPrevia(st); }
+      } else if (st) {
+        st.visivel = false;
+        pararPrevia(st);
+      }
+    });
+  }, { threshold: 0.25 }) : null;
   function observarCards() {
-    if (!obsPrevia) return;
+    if (!temIO) return;
     Array.prototype.forEach.call(document.querySelectorAll('[data-video]'), function (a) {
-      if (a.getAttribute('data-video')) obsPrevia.observe(a);
+      if (!a.getAttribute('data-video')) return;
+      obsPerto.observe(a);
+      obsTela.observe(a);
     });
   }
-  if (obsPrevia) {
+  if (temIO) {
     observarCards();
     if ('MutationObserver' in window) {
       var mo = new MutationObserver(observarCards);
