@@ -1073,6 +1073,7 @@ const SERVICOS = [
     pFundo.hidden = true;
     pTela.innerHTML = '';
     document.body.classList.remove('travado');
+    retomarPrevias();
     if (pFoco && pFoco.focus) pFoco.focus();
   }
 
@@ -1086,12 +1087,11 @@ const SERVICOS = [
   $('player-fechar').addEventListener('click', fecharPlayer);
   pFundo.addEventListener('click', function (e) { if (e.target === pFundo) fecharPlayer(); });
 
-  /* ---------- Prévia no mudo ao passar o mouse (só em telas com mouse) ---------- */
-  var podePrevia = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) && !reduzir;
-  /* Os vídeos dos cards que estão na tela são carregados antes, pausados e escondidos.
-     Ao passar o mouse só mandamos o "play", por isso começa na hora. */
+  /* ---------- Vídeos tocando sozinhos, no mudo, nos cards que estão na tela ---------- */
+  /* Quem pediu para reduzir animações no aparelho não recebe autoplay. */
+  var podePrevia = !reduzir;
   var previas = [];
-  var LIMITE_PREVIAS = 8;
+  var LIMITE_PREVIAS = 30;
 
   function cmdPrevia(st, func, args) {
     try { st.frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*'); } catch (err) {}
@@ -1125,7 +1125,7 @@ const SERVICOS = [
     f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=' + (autoplay ? 1 : 0) + '&mute=1&controls=0&loop=1&playlist=' + id +
       '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
-    var st = { a: a, frame: f, capa: capa, pronto: false, quer: false, poll: null };
+    var st = { a: a, frame: f, capa: capa, pronto: false, quer: !!autoplay, poll: null };
     f.addEventListener('load', function () {
       var n = 0;
       st.poll = setInterval(function () {
@@ -1148,6 +1148,7 @@ const SERVICOS = [
     if (st.pronto) { cmdPrevia(st, 'pauseVideo'); cmdPrevia(st, 'seekTo', [0, true]); }
   }
   function pararTodasPrevias() { previas.slice().forEach(pararPrevia); }
+  function retomarPrevias() { previas.slice().forEach(tocarPrevia); }
 
   /* O vídeo só aparece por cima da capa depois que o YouTube avisa que ele está tocando (estado 1) */
   window.addEventListener('message', function (e) {
@@ -1174,10 +1175,10 @@ const SERVICOS = [
   var obsPrevia = (podePrevia && 'IntersectionObserver' in window) ? new IntersectionObserver(function (itens) {
     itens.forEach(function (i) {
       var st = acharPrevia(i.target);
-      if (i.isIntersecting) { if (!st) criarPrevia(i.target, false); }
-      else if (st && !st.quer) descartarPrevia(st);
+      if (i.isIntersecting) { if (!st) criarPrevia(i.target, true); }
+      else if (st) descartarPrevia(st);
     });
-  }, { threshold: 0.25 }) : null;
+  }, { threshold: 0.25, rootMargin: '120px 0px' }) : null;
   function observarCards() {
     if (!obsPrevia) return;
     Array.prototype.forEach.call(document.querySelectorAll('[data-video]'), function (a) {
@@ -1192,19 +1193,6 @@ const SERVICOS = [
     }
   }
 
-  document.addEventListener('mouseover', function (e) {
-    if (!podePrevia) return;
-    var a = e.target.closest && e.target.closest('[data-video]');
-    if (!a || !a.getAttribute('data-video') || a.contains(e.relatedTarget)) return;
-    var st = acharPrevia(a) || criarPrevia(a, true);
-    if (st) tocarPrevia(st);
-  });
-  document.addEventListener('mouseout', function (e) {
-    var a = e.target.closest && e.target.closest('[data-video]');
-    if (!a || a.contains(e.relatedTarget)) return;
-    var st = acharPrevia(a);
-    if (st) pararPrevia(st);
-  });
 
   /* ---------- Card de captura ---------- */
   var fundo = $('fundo'), modalConteudo = $('modal-conteudo'), modalOk = $('modal-ok');
