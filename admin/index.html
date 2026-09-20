@@ -1170,9 +1170,9 @@ function desenharMarcas() {
     lista.map(function (m) {
       var u = usuarioInsta(m.instagram), w = linkWhats(m.telefone);
       var eFav = fav.has(String(m.id));
-      var semEmail = !prEmailOk(m.email) || m.exemplo;
+      var semEmail = !!m.exemplo;
       return '<tr data-id="' + esc(m.id) + '"' + ((eFav || m.selecionada) ? ' class="' + (eFav ? 'fav ' : '') + (m.selecionada ? 'sel' : '') + '"' : '') + '>' +
-        (estado.colSel ? '<td class="col-sel"><input type="checkbox" data-sel="1"' + (m.selecionada ? ' checked' : '') + (semEmail ? ' disabled title="Esta marca não tem e-mail"' : ' title="Selecionar para o disparo de e-mails"') + ' aria-label="Selecionar ' + esc(m.nome) + ' para o disparo"></td>' : '') +
+        (estado.colSel ? '<td class="col-sel"><input type="checkbox" data-sel="1"' + (m.selecionada ? ' checked' : '') + (semEmail ? ' disabled title="Marca de exemplo"' : (prEmailOk(m.email) ? ' title="Selecionar para o disparo de e-mails"' : ' title="Selecionar (esta marca não tem e-mail, então não recebe o disparo)"')) + ' aria-label="Selecionar ' + esc(m.nome) + ' para o disparo"></td>' : '') +
         '<td class="col-estrela"><button class="ib estrela' + (eFav ? ' on' : '') + '" type="button" data-fav="1" aria-pressed="' + eFav + '" aria-label="' + (eFav ? 'Tirar dos favoritos: ' : 'Favoritar: ') + esc(m.nome) + '" title="' + (eFav ? 'Tirar dos favoritos' : 'Favoritar e fixar no topo') + '">' + ic('estrela') + '</button></td>' +
         '<td><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
         '<td class="nb">' + (u ? '<a href="https://instagram.com/' + esc(u) + '" target="_blank" rel="noopener" title="Abrir o Instagram">' + ic('insta') + ' @' + esc(u) + '</a>' : esc(m.instagram)) + '</td>' +
@@ -1232,12 +1232,14 @@ function desenharSelbar() {
     return;
   }
   var n = estado.marcas.filter(function (m) { return m.selecionada && !m.exemplo; }).length;
-  alvo.innerHTML = '<div class="selbar" role="status"><span><b>' + n + '</b> ' + (n === 1 ? 'marca selecionada' : 'marcas selecionadas') + '</span><span class="espaco"></span>' +
+  var nSem = estado.marcas.filter(function (m) { return m.selecionada && !m.exemplo && !prEmailOk(m.email); }).length;
+  alvo.innerHTML = '<div class="selbar" role="status"><span><b>' + n + '</b> ' + (n === 1 ? 'marca selecionada' : 'marcas selecionadas') +
+    (nSem ? ' <small>(' + nSem + (nSem === 1 ? ' sem e-mail, não recebe o disparo' : ' sem e-mail, não recebem o disparo') + ')</small>' : '') + '</span><span class="espaco"></span>' +
     '<button class="btn" type="button" id="m-sel-todas">Selecionar todas as que aparecem</button>' +
     '<button class="btn" type="button" id="m-sel-limpar"' + (n ? '' : ' disabled') + '>Limpar seleção</button></div>';
   $('#m-sel-todas').addEventListener('click', function () {
-    var ids = (estado.marcasVisiveis || []).filter(function (m) { return prEmailOk(m.email) && !m.exemplo && !m.selecionada; }).map(function (m) { return m.id; });
-    if (!ids.length) { toast('As marcas que aparecem já estão selecionadas, ou não têm e-mail.'); return; }
+    var ids = (estado.marcasVisiveis || []).filter(function (m) { return !m.exemplo && !m.selecionada; }).map(function (m) { return m.id; });
+    if (!ids.length) { toast('As marcas que aparecem já estão selecionadas.'); return; }
     marcarSelecao(ids, true);
   });
   $('#m-sel-limpar').addEventListener('click', function () {
