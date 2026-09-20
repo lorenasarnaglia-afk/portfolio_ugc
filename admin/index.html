@@ -279,7 +279,8 @@ tr.escondido td{opacity:.5}
 .imp-resumo.vazio-imp{background:var(--amarelo-bg);color:var(--amarelo);border-color:#d6b45e}
 .modal.imp-modal{max-width:900px}
 .imp-opcoes .imp-sit select{width:auto;min-width:160px}
-.imp-previa{overflow-x:auto}
+.imp-previa{overflow:auto;max-height:340px}
+.imp-previa th{position:sticky;top:0;z-index:1;background:var(--ficha)}
 .imp-previa td.obs{max-width:200px}
 .imp-rodape{position:sticky;bottom:-18px;z-index:2;margin:14px -18px -18px;padding:12px 18px;background:var(--ficha);border-top:1px solid var(--linha)}
 .imp-previa td,.imp-previa th{padding:6px 9px;font-size:.8rem}
@@ -1434,7 +1435,7 @@ function prepararImportacao(texto, origem) {
     var resumo = m.querySelector('#imp-resumo');
     resumo.innerHTML = partes.join(' · ') + (S.mapa.nome < 0 && !r.novas.length ? '<br>Não achei a coluna com o nome da marca. Escolha ela na lista "Marca".' : '');
     resumo.className = 'imp-resumo' + (r.novas.length ? '' : ' vazio-imp');
-    var prev = r.novas.slice(0, 6);
+    var prev = r.novas;
     m.querySelector('#imp-previa').innerHTML = prev.length
       ? '<table><thead><tr><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th></tr></thead><tbody>' +
         prev.map(function (x) {
