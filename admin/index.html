@@ -256,6 +256,20 @@ tr.escondido td{opacity:.5}
 .modal-rodape{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px}
 .modal-rodape .espaco{flex:1}
 
+/* ---------- Importar planilha ---------- */
+.imp-arquivo{margin-bottom:6px;color:var(--azul);font-size:.85rem;overflow-wrap:anywhere}
+.imp-sub{margin:14px 0 6px;font-size:.68rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--azul)}
+.imp-sub span{margin-left:6px;font-weight:400;letter-spacing:0;text-transform:none}
+.imp-mapa .campo select{width:100%}
+.imp-opcoes{display:grid;gap:7px;margin:14px 0 4px;font-size:.85rem}
+.imp-opcoes label{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-weight:500}
+.imp-opcoes input[type=checkbox]{width:auto;min-height:0}
+.imp-resumo{margin:12px 0;padding:8px 10px;background:#e1e6d3;color:#3f4a30;border:1px solid #a9b38f;font-size:.85rem;line-height:1.5}
+.imp-resumo.vazio-imp{background:var(--amarelo-bg);color:var(--amarelo);border-color:#d6b45e}
+.imp-previa{max-height:230px;overflow:auto}
+.imp-previa td,.imp-previa th{padding:6px 9px;font-size:.8rem}
+.imp-mais{padding:6px 10px;font-size:.78rem;color:var(--azul)}
+
 .toast{position:fixed;left:50%;bottom:22px;z-index:200;transform:translateX(-50%);max-width:92vw;padding:9px 16px;background:var(--chumbo);color:#fff;font-size:.85rem;box-shadow:3px 3px 0 var(--sombra)}
 .toast.erro{background:var(--vermelho)}
 
@@ -413,6 +427,7 @@ var ICONES = {
   alca: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
   busca: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   baixar: '<path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>',
+  subir: '<path d="M12 16V5"/><path d="m7 9 5-5 5 5"/><path d="M5 20h14"/>',
   estrela: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9Z"/>',
   calendario: '<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   marcas: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.3c2.2.7 3.5 2.6 3.5 5.7"/>',
@@ -992,12 +1007,16 @@ async function telaMarcas(el) {
       '<select id="m-filtro" style="width:auto" aria-label="Filtrar por situação"><option value="todas">Todas as situações</option>' +
         SITUACOES.map(function (s) { return '<option value="' + s.v + '"' + (estado.marcasFiltro === s.v ? ' selected' : '') + '>' + s.t + '</option>'; }).join('') + '</select>' +
       '<span class="espaco"></span>' +
+      '<button class="btn" type="button" id="m-importar" title="Sobe uma planilha CSV e coloca os contatos na aba Marcas">' + ic('subir') + 'Importar planilha</button>' +
+      '<input type="file" id="m-arquivo" accept=".csv,.tsv,.txt,text/csv,text/plain" style="display:none" aria-label="Escolher planilha CSV">' +
       '<button class="btn" type="button" id="m-csv">' + ic('baixar') + 'Baixar CSV</button>' +
       '<button class="btn primario" type="button" id="m-novo">' + ic('plus') + 'Adicionar marca</button>' +
     '</div><div id="m-tabela"></div>';
   $('#m-busca').addEventListener('input', function (e) { estado.marcasBusca = e.target.value; desenharMarcas(); });
   $('#m-filtro').addEventListener('change', function (e) { estado.marcasFiltro = e.target.value; desenharMarcas(); });
   $('#m-novo').addEventListener('click', function () { formMarca(null); });
+  $('#m-importar').addEventListener('click', function () { $('#m-arquivo').value = ''; $('#m-arquivo').click(); });
+  $('#m-arquivo').addEventListener('change', function (e) { abrirImportacao(e.target.files && e.target.files[0]); });
   $('#m-csv').addEventListener('click', function () {
     var linhas = estado.marcas.filter(function (m) { return !m.exemplo; }).map(function (m) {
       var s = SITUACOES.filter(function (x) { return x.v === m.situacao; })[0];
@@ -1061,6 +1080,311 @@ function formMarca(m) {
     },
     onApagar: m ? async function () { await gravar('marcas', sb.from('marcas').delete().eq('id', m.id)); toast('Marca apagada.'); desenharTela(); } : null,
     textoApagar: 'Apagar esta marca da sua base? Não dá para desfazer.'
+  });
+}
+
+/* ==========================================================
+   6b) IMPORTAR PLANILHA DE MARCAS (CSV)
+   Você escolhe o arquivo, o painel identifica as colunas sozinho,
+   mostra uma prévia para conferir e só então grava na aba Marcas.
+   ========================================================== */
+var CAMPOS_IMPORT = [
+  { k: 'nome', t: 'Marca', sin: ['nome da marca', 'marca', 'empresa', 'razao social', 'nome', 'cliente', 'lead', 'company', 'brand', 'name', 'negocio'] },
+  { k: 'instagram', t: 'Instagram', sin: ['instagram', 'insta', 'perfil', 'ig', 'rede social', 'usuario', 'user', 'arroba'] },
+  { k: 'email', t: 'E-mail', sin: ['e-mail', 'email', 'mail', 'correio'] },
+  { k: 'telefone', t: 'Telefone', sin: ['telefone', 'celular', 'whatsapp', 'whats', 'zap', 'fone', 'tel', 'phone'] },
+  { k: 'situacao', t: 'Situação', sin: ['situacao', 'status', 'etapa', 'fase', 'estagio'] },
+  { k: 'obs', t: 'Observação', sin: ['observacao', 'observacoes', 'obs', 'notas', 'nota', 'anotacoes', 'comentario', 'comentarios', 'mensagem', 'detalhes', 'descricao'] },
+  { k: 'ultimo_contato', t: 'Último contato', sin: ['ultimo contato', 'data do contato', 'data contato', 'ultima interacao', 'contatado em', 'data'] }
+];
+var REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function limparCab(s) { return norm(s).replace(/[^a-z0-9@ ]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+function letraColuna(i) {
+  var s = ''; i++;
+  while (i > 0) { var r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); }
+  return s;
+}
+function decodificarArquivo(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch (e) { return new TextDecoder('windows-1252').decode(buf); } /* CSV do Excel em português costuma vir assim */
+}
+function detectarSep(texto) {
+  var cont = { ';': 0, ',': 0, '\t': 0 }, aspas = false, visto = false;
+  for (var i = 0; i < texto.length && i < 20000; i++) {
+    var c = texto.charAt(i);
+    if (c === '"') aspas = !aspas;
+    else if (!aspas) {
+      if (c === '\n' || c === '\r') { if (visto) break; }
+      else { visto = true; if (cont.hasOwnProperty(c)) cont[c]++; }
+    }
+  }
+  var melhor = ';';
+  [';', ',', '\t'].forEach(function (s) { if (cont[s] > cont[melhor]) melhor = s; });
+  return melhor;
+}
+function lerCSV(texto, sep) {
+  var linhas = [], atual = [], cel = '', aspas = false, n = texto.length;
+  for (var i = 0; i < n; i++) {
+    var c = texto.charAt(i);
+    if (aspas) {
+      if (c === '"') { if (texto.charAt(i + 1) === '"') { cel += '"'; i++; } else aspas = false; }
+      else cel += c;
+    } else if (c === '"' && cel === '') aspas = true;
+    else if (c === sep) { atual.push(cel); cel = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && texto.charAt(i + 1) === '\n') i++;
+      atual.push(cel); cel = ''; linhas.push(atual); atual = [];
+    } else cel += c;
+  }
+  if (cel !== '' || atual.length) { atual.push(cel); linhas.push(atual); }
+  return linhas.filter(function (l) { return l.some(function (x) { return String(x).trim() !== ''; }); });
+}
+function converterData(s) {
+  s = String(s || '').trim();
+  var m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})(?:\D.*)?$/), d, mes, a;
+  if (m) { d = +m[1]; mes = +m[2]; a = +m[3]; if (a < 100) a += 2000; }
+  else {
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:\D.*)?$/);
+    if (!m) return null;
+    a = +m[1]; mes = +m[2]; d = +m[3];
+  }
+  if (mes < 1 || mes > 12 || d < 1 || d > 31 || a < 2000 || a > 2100) return null;
+  if (new Date(a, mes - 1, d).getMonth() !== mes - 1) return null;
+  return a + '-' + (mes < 10 ? '0' : '') + mes + '-' + (d < 10 ? '0' : '') + d;
+}
+function situacaoDe(txt, padrao) {
+  var n = norm(txt).trim();
+  if (!n) return padrao;
+  if (/nao contatad|a contatar|nao abordad/.test(n)) return 'lead';
+  if (/parad|paus|perdid|sem resposta|nao respond|inativ|arquiv|descart|recus|sem interesse/.test(n)) return 'parada';
+  if (/cliente|fechad|ganh|contratad|ativ[oa]/.test(n)) return 'cliente';
+  if (/convers|negoci|respond|retorn|proposta|andamento|contato feito|quente|interess|agend|orcament/.test(n)) return 'conversando';
+  if (/lead|novo|frio|prospec|captad|potencial/.test(n)) return 'lead';
+  return padrao;
+}
+/* Aceita @usuario, usuario, instagram.com/usuario e https://www.instagram.com/usuario/ */
+function instaDe(s) {
+  var u = usuarioInsta(String(s || '').trim().replace(/^(https?:\/\/)?(www\.)?instagram\.com\//i, ''));
+  return u ? '@' + u : '';
+}
+function pareceTelefone(v) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return false;
+  var d = v.replace(/\D/g, '');
+  return d.length >= 8 && d.length <= 15 && v.replace(/[\d\s()+\-.]/g, '').length === 0;
+}
+/* Uma linha de títulos não tem e-mail, @perfil nem telefone. Se tiver, é dado. */
+function linhaComDados(linha) {
+  return linha.some(function (v) {
+    v = String(v == null ? '' : v).trim();
+    return REGEX_EMAIL.test(v) || /^@[\w.]+$/.test(v) || pareceTelefone(v);
+  });
+}
+function cabecalhoReconhecido(linha) {
+  if (linhaComDados(linha)) return false;
+  return linha.some(function (h) {
+    var hn = ' ' + limparCab(h) + ' ';
+    if (hn.trim() === '') return false;
+    return CAMPOS_IMPORT.some(function (c) {
+      return c.sin.some(function (s) { var sn = limparCab(s); return hn.trim() === sn || hn.indexOf(' ' + sn + ' ') >= 0; });
+    });
+  });
+}
+/* Descobre qual coluna é qual: primeiro pelo título, depois olhando o conteúdo das células */
+function autoMapa(cab, dados, temCab) {
+  var mapa = {}, usadas = {}, cand = [], ncol = cab.length;
+  CAMPOS_IMPORT.forEach(function (c) { mapa[c.k] = -1; });
+  if (temCab) {
+    cab.forEach(function (h, j) {
+      var hn = ' ' + limparCab(h) + ' ';
+      if (hn.trim() === '') return;
+      CAMPOS_IMPORT.forEach(function (c) {
+        var melhor = 0;
+        c.sin.forEach(function (s) {
+          var sn = limparCab(s);
+          if (hn.trim() === sn) melhor = Math.max(melhor, 3);
+          else if (hn.indexOf(' ' + sn + ' ') >= 0) melhor = Math.max(melhor, 2);
+        });
+        if (melhor) cand.push({ k: c.k, j: j, p: melhor });
+      });
+    });
+    cand.sort(function (a, b) { return b.p - a.p || a.j - b.j; });
+    cand.forEach(function (x) { if (mapa[x.k] < 0 && !usadas[x.j]) { mapa[x.k] = x.j; usadas[x.j] = 1; } });
+  }
+  var amostra = dados.slice(0, 60);
+  function frac(j, teste) {
+    var t = 0, ok = 0;
+    amostra.forEach(function (l) { var v = String(l[j] == null ? '' : l[j]).trim(); if (!v) return; t++; if (teste(v)) ok++; });
+    return t ? ok / t : 0;
+  }
+  var testes = {
+    email: function (v) { return REGEX_EMAIL.test(v); },
+    instagram: function (v) { return /^@[\w.]+$/.test(v) || /^(https?:\/\/)?(www\.)?instagram\.com\//i.test(v); },
+    telefone: pareceTelefone,
+    ultimo_contato: function (v) { return converterData(v) !== null; }
+  };
+  Object.keys(testes).forEach(function (k) {
+    if (mapa[k] >= 0) return;
+    for (var j = 0; j < ncol; j++) { if (!usadas[j] && frac(j, testes[k]) >= 0.6) { mapa[k] = j; usadas[j] = 1; break; } }
+  });
+  if (mapa.nome < 0) {
+    var pareceNome = function (v) { return /[a-zA-ZÀ-ÿ]/.test(v) && !REGEX_EMAIL.test(v) && !/^https?:/i.test(v) && v.length <= 80; };
+    for (var j = 0; j < ncol; j++) { if (!usadas[j] && frac(j, pareceNome) >= 0.6) { mapa.nome = j; usadas[j] = 1; break; } }
+  }
+  return mapa;
+}
+/* Transforma as linhas da planilha em marcas prontas para gravar */
+function construirImport(dados, mapa, opc, cab) {
+  var usadas = {};
+  Object.keys(mapa).forEach(function (k) { if (mapa[k] >= 0) usadas[mapa[k]] = 1; });
+  function chaves(r) {
+    var ks = [];
+    if (r.email) ks.push('e:' + String(r.email).toLowerCase());
+    var u = usuarioInsta(r.instagram);
+    if (u) ks.push('i:' + u.toLowerCase());
+    if (r.nome) ks.push('n:' + norm(r.nome).replace(/\s+/g, ' ').trim());
+    return ks;
+  }
+  var visto = {};
+  estado.marcas.forEach(function (m) { chaves(m).forEach(function (k) { visto[k] = 1; }); });
+  var novas = [], repetidas = 0, semNome = 0;
+  dados.forEach(function (l) {
+    if (!l.some(function (x) { return String(x == null ? '' : x).trim() !== ''; })) return;
+    function get(k) { var j = mapa[k]; return j >= 0 ? String(l[j] == null ? '' : l[j]).trim() : ''; }
+    var r = {
+      nome: get('nome'), instagram: instaDe(get('instagram')), email: get('email').toLowerCase(), telefone: get('telefone'),
+      situacao: situacaoDe(get('situacao'), opc.situacao), obs: get('obs'), ultimo_contato: converterData(get('ultimo_contato'))
+    };
+    if (r.email && !REGEX_EMAIL.test(r.email)) r.email = '';
+    if (opc.juntar) {
+      var extras = [];
+      cab.forEach(function (h, j) {
+        if (usadas[j]) return;
+        var v = String(l[j] == null ? '' : l[j]).trim();
+        if (v) extras.push((String(h || '').trim() || ('Coluna ' + letraColuna(j))) + ': ' + v);
+      });
+      if (extras.length) r.obs = (r.obs ? r.obs + ' | ' : '') + extras.join(' | ');
+    }
+    if (!r.nome) r.nome = r.instagram || (r.email ? r.email.split('@')[0] : '');
+    if (!r.nome) { semNome++; return; }
+    r.nome = r.nome.slice(0, 200); r.email = r.email.slice(0, 200); r.telefone = r.telefone.slice(0, 60);
+    r.instagram = r.instagram.slice(0, 100); r.obs = r.obs.slice(0, 3000);
+    var ks = chaves(r);
+    if (opc.pular && ks.some(function (k) { return visto[k]; })) { repetidas++; return; }
+    ks.forEach(function (k) { visto[k] = 1; });
+    novas.push(r);
+  });
+  return { novas: novas, repetidas: repetidas, semNome: semNome };
+}
+
+async function abrirImportacao(arquivo) {
+  if (!arquivo) return;
+  var msgExcel = 'Esse é um arquivo do Excel. Abra ele, escolha Arquivo > Salvar como > CSV e suba o CSV aqui.';
+  if (arquivo.size > 5 * 1024 * 1024) { toast('Esse arquivo é grande demais (o máximo é 5 MB).', true); return; }
+  if (/\.xlsx?$/i.test(arquivo.name)) { toast(msgExcel, true); return; }
+  var texto;
+  try { texto = decodificarArquivo(await arquivo.arrayBuffer()); } catch (e) { toast('Não consegui ler esse arquivo.', true); return; }
+  if (texto.slice(0, 2) === 'PK') { toast(msgExcel, true); return; }
+  texto = texto.replace(/^﻿/, '');
+  var sep, mSep = texto.match(/^sep=(.)\r?\n/i);
+  if (mSep) { sep = mSep[1]; texto = texto.slice(mSep[0].length); } else sep = detectarSep(texto);
+  var linhas = lerCSV(texto, sep), cortou = false;
+  if (!linhas.length) { toast('A planilha está vazia.', true); return; }
+  if (linhas.length > 5001) { linhas = linhas.slice(0, 5001); cortou = true; }
+  var ncol = linhas.reduce(function (m, l) { return Math.max(m, l.length); }, 0);
+
+  var S = { temCab: cabecalhoReconhecido(linhas[0]), cab: [], dados: [], mapa: {}, novas: [] };
+  function preparar() {
+    var i;
+    if (S.temCab) { S.cab = linhas[0].slice(); S.dados = linhas.slice(1); }
+    else { S.cab = []; S.dados = linhas; }
+    while (S.cab.length < ncol) S.cab.push('');
+    S.mapa = autoMapa(S.cab, S.dados, S.temCab);
+  }
+  preparar();
+
+  var html = '<div class="modal-topo"><h2>Importar planilha de marcas</h2><button class="ib" type="button" data-fechar aria-label="Fechar">' + ic('x') + '</button></div>' +
+    '<p class="imp-arquivo"><b>' + esc(arquivo.name) + '</b> · ' + linhas.length + ' linhas lidas' + (cortou ? ' (só as 5.000 primeiras)' : '') + '</p>' +
+    '<div class="imp-sub">Como entendi as colunas <span>confira e mude se precisar</span></div>' +
+    '<div class="grade-form imp-mapa" id="imp-mapa"></div>' +
+    '<div class="imp-opcoes">' +
+      '<label><input type="checkbox" id="imp-cab"' + (S.temCab ? ' checked' : '') + '> A primeira linha da planilha é o título das colunas</label>' +
+      '<label><input type="checkbox" id="imp-pular" checked> Pular marcas que já estão na minha base (mesmo e-mail, Instagram ou nome)</label>' +
+      '<label><input type="checkbox" id="imp-juntar" checked> Guardar as outras colunas da planilha na observação</label>' +
+      '<label class="imp-sit">Situação de quem não tiver essa informação: ' +
+        '<select id="imp-sit">' + SITUACOES.map(function (s) { return '<option value="' + s.v + '">' + esc(s.t) + '</option>'; }).join('') + '</select></label>' +
+    '</div>' +
+    '<div class="imp-resumo" id="imp-resumo" role="status"></div>' +
+    '<div class="imp-sub">Prévia</div><div class="rolagem imp-previa" id="imp-previa"></div>' +
+    '<p class="erro-form" role="alert" hidden></p>' +
+    '<div class="modal-rodape"><button class="btn" type="button" data-modelo>' + ic('baixar') + 'Baixar modelo</button><span class="espaco"></span>' +
+      '<button class="btn" type="button" data-fechar>Cancelar</button><button class="btn primario" type="button" id="imp-ok">Importar</button></div>';
+  var m = abrirModal(html, true);
+
+  function desenharMapa() {
+    m.querySelector('#imp-mapa').innerHTML = CAMPOS_IMPORT.map(function (c) {
+      var ops = '<option value="-1">— não tenho —</option>';
+      for (var j = 0; j < ncol; j++) {
+        var amostra = '';
+        for (var i = 0; i < S.dados.length && !amostra; i++) amostra = String(S.dados[i][j] == null ? '' : S.dados[i][j]).trim();
+        var nomeCol = (S.temCab && String(S.cab[j] || '').trim()) || ('Coluna ' + letraColuna(j));
+        ops += '<option value="' + j + '"' + (S.mapa[c.k] === j ? ' selected' : '') + '>' + esc(nomeCol + (amostra ? '  ·  ' + amostra.slice(0, 26) : '')) + '</option>';
+      }
+      return '<div class="campo"><label for="imp-c-' + c.k + '">' + esc(c.t) + (c.k === 'nome' ? ' *' : '') + '</label><select id="imp-c-' + c.k + '" data-campo="' + c.k + '">' + ops + '</select></div>';
+    }).join('');
+  }
+  function atualizar() {
+    CAMPOS_IMPORT.forEach(function (c) { S.mapa[c.k] = Number(m.querySelector('[data-campo="' + c.k + '"]').value); });
+    var opc = { situacao: m.querySelector('#imp-sit').value, pular: m.querySelector('#imp-pular').checked, juntar: m.querySelector('#imp-juntar').checked };
+    var r = construirImport(S.dados, S.mapa, opc, S.cab);
+    S.novas = r.novas;
+    var partes = ['<b>' + r.novas.length + '</b> ' + (r.novas.length === 1 ? 'marca pronta' : 'marcas prontas') + ' para entrar'];
+    if (r.repetidas) partes.push(r.repetidas + ' já ' + (r.repetidas === 1 ? 'existe e será pulada' : 'existem e serão puladas'));
+    if (r.semNome) partes.push(r.semNome + ' ' + (r.semNome === 1 ? 'linha sem nome ignorada' : 'linhas sem nome ignoradas'));
+    var resumo = m.querySelector('#imp-resumo');
+    resumo.innerHTML = partes.join(' · ') + (S.mapa.nome < 0 && !r.novas.length ? '<br>Não achei a coluna com o nome da marca. Escolha ela na lista "Marca".' : '');
+    resumo.className = 'imp-resumo' + (r.novas.length ? '' : ' vazio-imp');
+    var prev = r.novas.slice(0, 6);
+    m.querySelector('#imp-previa').innerHTML = prev.length
+      ? '<table><thead><tr><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th></tr></thead><tbody>' +
+        prev.map(function (x) {
+          return '<tr><td>' + esc(x.nome) + '</td><td class="nb">' + esc(x.instagram) + '</td><td class="nb">' + esc(x.email) + '</td><td class="nb">' + esc(x.telefone) + '</td><td>' + pilSituacao(x.situacao) + '</td></tr>';
+        }).join('') + '</tbody></table>' + (r.novas.length > prev.length ? '<p class="imp-mais">…e mais ' + (r.novas.length - prev.length) + '</p>' : '')
+      : '<p class="vazio">Nada para importar com essas configurações.</p>';
+    var btn = m.querySelector('#imp-ok');
+    btn.textContent = 'Importar ' + r.novas.length + (r.novas.length === 1 ? ' marca' : ' marcas');
+    btn.disabled = !r.novas.length;
+  }
+  desenharMapa();
+  atualizar();
+
+  m.addEventListener('change', function (e) {
+    if (e.target.id === 'imp-cab') { S.temCab = e.target.checked; preparar(); desenharMapa(); }
+    atualizar();
+  });
+  m.querySelector('[data-modelo]').addEventListener('click', function () {
+    baixarCSV('modelo-marcas', ['Marca', 'Instagram', 'E-mail', 'Telefone', 'Situação', 'Observação', 'Último contato'],
+      [['Marca Exemplo', '@marcaexemplo', 'contato@marcaexemplo.com', '(38) 99999-9999', 'Lead', 'Conheci no evento X', '15/09/2026']]);
+  });
+  m.querySelector('#imp-ok').addEventListener('click', async function () {
+    var btn = this, erro = m.querySelector('.erro-form'), feitas = 0;
+    if (!S.novas.length) return;
+    btn.disabled = true; btn.textContent = 'Importando...'; erro.hidden = true;
+    try {
+      for (var i = 0; i < S.novas.length; i += 100) {
+        var lote = S.novas.slice(i, i + 100);
+        await gravar('marcas', sb.from('marcas').insert(lote));
+        feitas += lote.length;
+      }
+      fecharModal();
+      toast(feitas + (feitas === 1 ? ' marca importada.' : ' marcas importadas.'));
+      desenharTela();
+    } catch (err) {
+      erro.textContent = (feitas ? feitas + ' marcas entraram antes do erro. ' : '') + (err.message || 'Não consegui importar.');
+      erro.hidden = false;
+      if (feitas) desenharTela();
+      atualizar();
+    }
   });
 }
 
