@@ -1058,7 +1058,7 @@ const SERVICOS = [
   var pFundo = $('player-fundo'), pTela = $('player-tela'), pFoco = null;
 
   function abrirPlayer(id, titulo, etiqueta, origem) {
-    pararPrevia();
+    pararTodasPrevias();
     pFoco = origem || document.activeElement;
     $('player-titulo').textContent = titulo;
     $('player-etiqueta').textContent = etiqueta;
@@ -1088,68 +1088,122 @@ const SERVICOS = [
 
   /* ---------- Prévia no mudo ao passar o mouse (só em telas com mouse) ---------- */
   var podePrevia = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) && !reduzir;
-  var previaAtual = null, previaTimer = null;
+  /* Os vídeos dos cards que estão na tela são carregados antes, pausados e escondidos.
+     Ao passar o mouse só mandamos o "play", por isso começa na hora. */
+  var previas = [];
+  var LIMITE_PREVIAS = 8;
 
-  function pararPrevia() {
-    clearTimeout(previaTimer);
-    previaTimer = null;
-    if (!previaAtual) return;
-    clearInterval(previaAtual.poll);
-    previaAtual.capa.classList.remove('tocando');
-    if (previaAtual.frame.parentNode) previaAtual.frame.parentNode.removeChild(previaAtual.frame);
-    previaAtual = null;
+  function cmdPrevia(st, func, args) {
+    try { st.frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: func, args: args || [] }), '*'); } catch (err) {}
   }
-  function iniciarPrevia(a) {
-    pararPrevia();
+  function acharPrevia(a) {
+    for (var i = 0; i < previas.length; i++) if (previas[i].a === a) return previas[i];
+    return null;
+  }
+  function descartarPrevia(st) {
+    clearInterval(st.poll);
+    st.capa.classList.remove('tocando');
+    if (st.frame.parentNode) st.frame.parentNode.removeChild(st.frame);
+    var i = previas.indexOf(st);
+    if (i > -1) previas.splice(i, 1);
+  }
+  function criarPrevia(a, autoplay) {
     var id = a.getAttribute('data-video');
     var capa = a.querySelector('.destaque-capa, .trabalho-capa');
-    if (!id || !capa) return;
-    previaTimer = setTimeout(function () {
-      var f = document.createElement('iframe');
-      f.className = 'previa';
-      f.setAttribute('aria-hidden', 'true');
-      f.setAttribute('tabindex', '-1');
-      f.setAttribute('allow', 'autoplay; encrypted-media');
-      f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-      f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=1&mute=1&controls=0&loop=1&playlist=' + id +
-        '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
-      var estado = { frame: f, capa: capa, poll: null };
-      f.addEventListener('load', function () {
-        var tentativas = 0;
-        estado.poll = setInterval(function () {
-          if (previaAtual !== estado) { clearInterval(estado.poll); return; }
-          try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'previa', channel: 'widget' }), '*'); } catch (err) {}
-          if (++tentativas > 14) pararPrevia();
-        }, 500);
-      });
-      capa.appendChild(f);
-      previaAtual = estado;
-    }, 350);
+    if (!id || !capa) return null;
+    previas.slice().forEach(function (p) { if (!document.body.contains(p.a)) descartarPrevia(p); });
+    while (previas.length >= LIMITE_PREVIAS) {
+      var velha = previas.filter(function (p) { return !p.quer; })[0];
+      if (!velha) break;
+      descartarPrevia(velha);
+    }
+    var f = document.createElement('iframe');
+    f.className = 'previa';
+    f.setAttribute('aria-hidden', 'true');
+    f.setAttribute('tabindex', '-1');
+    f.setAttribute('allow', 'autoplay; encrypted-media');
+    f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + id + '?autoplay=' + (autoplay ? 1 : 0) + '&mute=1&controls=0&loop=1&playlist=' + id +
+      '&playsinline=1&rel=0&modestbranding=1&disablekb=1&iv_load_policy=3&fs=0&enablejsapi=1&origin=' + encodeURIComponent(location.origin);
+    var st = { a: a, frame: f, capa: capa, pronto: false, quer: false, poll: null };
+    f.addEventListener('load', function () {
+      var n = 0;
+      st.poll = setInterval(function () {
+        if (st.pronto || ++n > 40) { clearInterval(st.poll); return; }
+        try { f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 'previa', channel: 'widget' }), '*'); } catch (err) {}
+      }, 250);
+    });
+    capa.appendChild(f);
+    previas.push(st);
+    return st;
   }
+  function tocarPrevia(st) {
+    st.quer = true;
+    if (st.pronto) cmdPrevia(st, 'playVideo');
+  }
+  function pararPrevia(st) {
+    st.quer = false;
+    st.frame.classList.remove('pronta');
+    st.capa.classList.remove('tocando');
+    if (st.pronto) { cmdPrevia(st, 'pauseVideo'); cmdPrevia(st, 'seekTo', [0, true]); }
+  }
+  function pararTodasPrevias() { previas.slice().forEach(pararPrevia); }
+
   /* O vídeo só aparece por cima da capa depois que o YouTube avisa que ele está tocando (estado 1) */
   window.addEventListener('message', function (e) {
-    if (!previaAtual || e.source !== previaAtual.frame.contentWindow) return;
     if (!/youtube(-nocookie)?\.com$/.test(e.origin)) return;
+    var st = null;
+    for (var i = 0; i < previas.length; i++) if (previas[i].frame.contentWindow === e.source) { st = previas[i]; break; }
+    if (!st) return;
     var d;
     try { d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data; } catch (err) { return; }
     if (!d) return;
+    if ((d.event === 'onReady' || d.event === 'initialDelivery') && !st.pronto) {
+      st.pronto = true;
+      clearInterval(st.poll);
+      if (st.quer) cmdPrevia(st, 'playVideo');
+    }
     var s = d.event === 'onStateChange' ? d.info : (d.info && d.info.playerState);
     if (s === 1) {
-      clearInterval(previaAtual.poll);
-      previaAtual.frame.classList.add('pronta');
-      previaAtual.capa.classList.add('tocando');
+      if (st.quer) { st.frame.classList.add('pronta'); st.capa.classList.add('tocando'); }
+      else cmdPrevia(st, 'pauseVideo');
     }
   });
+
+  /* Prepara os cards que aparecem na tela (e solta os que saem) */
+  var obsPrevia = (podePrevia && 'IntersectionObserver' in window) ? new IntersectionObserver(function (itens) {
+    itens.forEach(function (i) {
+      var st = acharPrevia(i.target);
+      if (i.isIntersecting) { if (!st) criarPrevia(i.target, false); }
+      else if (st && !st.quer) descartarPrevia(st);
+    });
+  }, { threshold: 0.25 }) : null;
+  function observarCards() {
+    if (!obsPrevia) return;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-video]'), function (a) {
+      if (a.getAttribute('data-video')) obsPrevia.observe(a);
+    });
+  }
+  if (obsPrevia) {
+    observarCards();
+    if ('MutationObserver' in window) {
+      var mo = new MutationObserver(observarCards);
+      ['destaques-lista', 'trabalhos-lista'].forEach(function (id) { mo.observe($(id), { childList: true }); });
+    }
+  }
+
   document.addEventListener('mouseover', function (e) {
     if (!podePrevia) return;
     var a = e.target.closest && e.target.closest('[data-video]');
     if (!a || !a.getAttribute('data-video') || a.contains(e.relatedTarget)) return;
-    iniciarPrevia(a);
+    var st = acharPrevia(a) || criarPrevia(a, true);
+    if (st) tocarPrevia(st);
   });
   document.addEventListener('mouseout', function (e) {
     var a = e.target.closest && e.target.closest('[data-video]');
     if (!a || a.contains(e.relatedTarget)) return;
-    pararPrevia();
+    var st = acharPrevia(a);
+    if (st) pararPrevia(st);
   });
 
   /* ---------- Card de captura ---------- */
