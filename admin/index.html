@@ -176,6 +176,12 @@ td.acoes{white-space:nowrap;text-align:right}
 tr.fav td:first-child{box-shadow:inset 4px 0 0 var(--terracota)}
 tr.fav td{background:rgba(151,67,21,.06)}
 th.col-estrela,td.col-estrela{width:40px;padding-left:8px;padding-right:0}
+th.col-lixo,td.col-lixo{width:44px;text-align:center;padding-left:4px;padding-right:8px}
+td.col-lixo{position:sticky;right:0;background:var(--ficha)}
+th.col-lixo{position:sticky;right:0;background:var(--ficha)}
+tr.fav td.col-lixo{background:#f1e5d9}
+td.col-lixo .ib{color:var(--golfinho)}
+td.col-lixo .ib:hover{color:var(--vermelho);background:var(--vermelho-bg);border-color:var(--vermelho)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .ib.estrela{color:var(--golfinho)}
 .ib.estrela:hover{color:var(--terracota)}
@@ -1079,7 +1085,7 @@ function desenharMarcas() {
     alvo.innerHTML = '<div class="cartao"><p class="vazio">' + (estado.marcasSoFav && !fav.size ? 'Você ainda não favoritou nenhuma marca. Clique na estrela ao lado do nome para fixar a marca no topo.' : 'Nenhuma marca encontrada com essa busca ou filtro.') + '</p></div>';
     return;
   }
-  alvo.innerHTML = '<div class="rolagem"><table><thead><tr><th class="col-estrela"><span class="sr">Favorita</span></th><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th></tr></thead><tbody>' +
+  alvo.innerHTML = '<div class="rolagem"><table><thead><tr><th class="col-estrela"><span class="sr">Favorita</span></th><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="col-lixo"><span class="sr">Excluir</span></th></tr></thead><tbody>' +
     lista.map(function (m) {
       var u = usuarioInsta(m.instagram), w = linkWhats(m.telefone);
       var eFav = fav.has(String(m.id));
@@ -1091,13 +1097,26 @@ function desenharMarcas() {
         '<td class="nb">' + esc(m.telefone) + (w ? ' <a class="ib" href="' + esc(w) + '" target="_blank" rel="noopener" aria-label="Abrir o WhatsApp de ' + esc(m.nome) + '" title="Abrir o WhatsApp">' + ic('whats') + '</a>' : '') + '</td>' +
         '<td>' + pilSituacao(m.situacao) + '</td>' +
         '<td class="obs" title="' + esc(m.obs) + '">' + esc(m.obs) + '</td>' +
-        '<td class="nb">' + fmtData(m.ultimo_contato) + '</td></tr>';
+        '<td class="nb">' + fmtData(m.ultimo_contato) + '</td>' +
+        '<td class="col-lixo"><button class="ib perigo" type="button" data-apagar="1" aria-label="Excluir marca: ' + esc(m.nome) + '" title="Excluir esta marca">' + ic('lixo') + '</button></td></tr>';
     }).join('') + '</tbody></table></div>';
   $('tbody', alvo).addEventListener('click', async function (e) {
     if (e.target.closest('a')) return;
     var tr = e.target.closest('tr[data-id]');
     if (!tr) return;
     var id = String(tr.getAttribute('data-id'));
+    if (e.target.closest('[data-apagar]')) {
+      var alvoM = estado.marcas.filter(function (x) { return String(x.id) === id; })[0];
+      if (!alvoM) return;
+      if (!(await confirmar('Excluir "' + (alvoM.nome || 'esta marca') + '" da sua base? Não dá para desfazer.', 'Excluir'))) return;
+      try {
+        await gravar('marcas', sb.from('marcas').delete().eq('id', alvoM.id));
+        try { await sb.from('marcados').delete().eq('chave', 'marca:' + alvoM.id); } catch (err2) { /* só limpeza da estrela */ }
+        toast('Marca excluída.');
+        desenharTela();
+      } catch (err) { toast(err.message, true); }
+      return;
+    }
     if (e.target.closest('[data-fav]')) {
       var chave = 'marca:' + id, novo = !fav.has(id);
       if (novo) fav.add(id); else fav.delete(id);
