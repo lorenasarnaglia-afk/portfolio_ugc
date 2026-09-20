@@ -175,6 +175,14 @@ td.acoes{white-space:nowrap;text-align:right}
 .linkbtn:hover{color:var(--terracota);text-decoration:underline}
 tr.fav td:first-child{box-shadow:inset 4px 0 0 var(--terracota)}
 tr.fav td{background:rgba(151,67,21,.06)}
+th.col-estrela,td.col-estrela{width:40px;padding-left:8px;padding-right:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ib.estrela{color:var(--golfinho)}
+.ib.estrela:hover{color:var(--terracota)}
+.ib.estrela.on{color:var(--terracota)}
+.ib.estrela.on .i{fill:currentColor}
+.btn[aria-pressed=true]{background:#f6e0cf;border-color:var(--terracota);color:var(--terracota-esc)}
+.btn[aria-pressed=true] .i{fill:currentColor}
 tr.arrastando td{background:var(--suave)}
 tr.escondido td{opacity:.5}
 .alca{cursor:grab;touch-action:none;color:var(--golfinho)}
@@ -1016,12 +1024,16 @@ function pilSituacao(s) {
 }
 
 async function telaMarcas(el) {
-  estado.marcas = await ler('marcas');
+  /* As favoritas ficam guardadas na tabela "marcados" (chave "marca:ID"), a mesma do checklist, então não precisa mexer no banco */
+  var res = await Promise.all([ler('marcas'), ler('marcados')]);
+  estado.marcas = res[0];
+  estado.marcasFav = new Set(res[1].filter(function (l) { return String(l.chave).indexOf('marca:') === 0; }).map(function (l) { return String(l.chave).slice(6); }));
   el.innerHTML =
     '<div class="barra">' +
       '<div class="busca">' + ic('busca') + '<input type="search" id="m-busca" placeholder="Buscar por nome, @ ou e-mail" aria-label="Buscar marca" value="' + esc(estado.marcasBusca) + '"></div>' +
       '<select id="m-filtro" style="width:auto" aria-label="Filtrar por situação"><option value="todas">Todas as situações</option>' +
         SITUACOES.map(function (s) { return '<option value="' + s.v + '"' + (estado.marcasFiltro === s.v ? ' selected' : '') + '>' + s.t + '</option>'; }).join('') + '</select>' +
+      '<button class="btn" type="button" id="m-fav" aria-pressed="' + !!estado.marcasSoFav + '" title="Mostrar só as marcas com estrela">' + ic('estrela') + 'Só favoritas</button>' +
       '<span class="espaco"></span>' +
       '<button class="btn" type="button" id="m-importar" title="Sobe uma planilha CSV e coloca os contatos na aba Marcas">' + ic('subir') + 'Importar planilha</button>' +
       '<input type="file" id="m-arquivo" accept=".csv,.tsv,.txt,text/csv,text/plain" style="display:none" aria-label="Escolher planilha CSV">' +
@@ -1030,6 +1042,11 @@ async function telaMarcas(el) {
     '</div><div id="m-tabela"></div>';
   $('#m-busca').addEventListener('input', function (e) { estado.marcasBusca = e.target.value; desenharMarcas(); });
   $('#m-filtro').addEventListener('change', function (e) { estado.marcasFiltro = e.target.value; desenharMarcas(); });
+  $('#m-fav').addEventListener('click', function (e) {
+    estado.marcasSoFav = !estado.marcasSoFav;
+    e.currentTarget.setAttribute('aria-pressed', String(!!estado.marcasSoFav));
+    desenharMarcas();
+  });
   $('#m-novo').addEventListener('click', function () { formMarca(null); });
   $('#m-importar').addEventListener('click', escolherOrigemImportacao);
   $('#m-arquivo').addEventListener('change', function (e) { abrirImportacao(e.target.files && e.target.files[0]); });
@@ -1046,18 +1063,28 @@ async function telaMarcas(el) {
 
 function desenharMarcas() {
   var q = norm(estado.marcasBusca.replace(/^@/, ''));
+  var fav = estado.marcasFav || new Set();
   var lista = estado.marcas.filter(function (m) {
+    if (estado.marcasSoFav && !fav.has(String(m.id))) return false;
     if (estado.marcasFiltro !== 'todas' && m.situacao !== estado.marcasFiltro) return false;
     if (!q) return true;
     return norm(m.nome).indexOf(q) >= 0 || norm(m.instagram).replace('@', '').indexOf(q) >= 0 || norm(m.email).indexOf(q) >= 0;
-  }).sort(function (a, b) { return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'); });
+  }).sort(function (a, b) {
+    var fa = fav.has(String(a.id)) ? 0 : 1, fb = fav.has(String(b.id)) ? 0 : 1; /* favoritas sempre em cima */
+    return fa - fb || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+  });
   var alvo = $('#m-tabela');
   if (!estado.marcas.length) { alvo.innerHTML = '<div class="cartao"><p class="vazio">Nenhuma marca ainda. Clique em "Adicionar marca". Quem preencher o formulário do seu site também entra aqui como Lead.</p></div>'; return; }
-  if (!lista.length) { alvo.innerHTML = '<div class="cartao"><p class="vazio">Nenhuma marca encontrada com essa busca ou filtro.</p></div>'; return; }
-  alvo.innerHTML = '<div class="rolagem"><table><thead><tr><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th></tr></thead><tbody>' +
+  if (!lista.length) {
+    alvo.innerHTML = '<div class="cartao"><p class="vazio">' + (estado.marcasSoFav && !fav.size ? 'Você ainda não favoritou nenhuma marca. Clique na estrela ao lado do nome para fixar a marca no topo.' : 'Nenhuma marca encontrada com essa busca ou filtro.') + '</p></div>';
+    return;
+  }
+  alvo.innerHTML = '<div class="rolagem"><table><thead><tr><th class="col-estrela"><span class="sr">Favorita</span></th><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th></tr></thead><tbody>' +
     lista.map(function (m) {
       var u = usuarioInsta(m.instagram), w = linkWhats(m.telefone);
-      return '<tr data-id="' + esc(m.id) + '">' +
+      var eFav = fav.has(String(m.id));
+      return '<tr data-id="' + esc(m.id) + '"' + (eFav ? ' class="fav"' : '') + '>' +
+        '<td class="col-estrela"><button class="ib estrela' + (eFav ? ' on' : '') + '" type="button" data-fav="1" aria-pressed="' + eFav + '" aria-label="' + (eFav ? 'Tirar dos favoritos: ' : 'Favoritar: ') + esc(m.nome) + '" title="' + (eFav ? 'Tirar dos favoritos' : 'Favoritar e fixar no topo') + '">' + ic('estrela') + '</button></td>' +
         '<td><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
         '<td class="nb">' + (u ? '<a href="https://instagram.com/' + esc(u) + '" target="_blank" rel="noopener" title="Abrir o Instagram">' + ic('insta') + ' @' + esc(u) + '</a>' : esc(m.instagram)) + '</td>' +
         '<td class="nb">' + (m.email ? '<a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' : '') + '</td>' +
@@ -1066,11 +1093,24 @@ function desenharMarcas() {
         '<td class="obs" title="' + esc(m.obs) + '">' + esc(m.obs) + '</td>' +
         '<td class="nb">' + fmtData(m.ultimo_contato) + '</td></tr>';
     }).join('') + '</tbody></table></div>';
-  $('tbody', alvo).addEventListener('click', function (e) {
+  $('tbody', alvo).addEventListener('click', async function (e) {
     if (e.target.closest('a')) return;
     var tr = e.target.closest('tr[data-id]');
     if (!tr) return;
-    var m = estado.marcas.filter(function (x) { return String(x.id) === tr.getAttribute('data-id'); })[0];
+    var id = String(tr.getAttribute('data-id'));
+    if (e.target.closest('[data-fav]')) {
+      var chave = 'marca:' + id, novo = !fav.has(id);
+      if (novo) fav.add(id); else fav.delete(id);
+      estado.marcasFav = fav;
+      desenharMarcas();
+      try { await gravar('marcados', novo ? sb.from('marcados').upsert({ chave: chave }) : sb.from('marcados').delete().eq('chave', chave)); }
+      catch (err) {
+        if (novo) fav.delete(id); else fav.add(id);
+        desenharMarcas(); toast(err.message, true);
+      }
+      return;
+    }
+    var m = estado.marcas.filter(function (x) { return String(x.id) === id; })[0];
     if (m) formMarca(m);
   });
 }
@@ -1094,7 +1134,11 @@ function formMarca(m) {
       else await gravar('marcas', sb.from('marcas').insert(dados));
       toast('Marca salva.'); desenharTela();
     },
-    onApagar: m ? async function () { await gravar('marcas', sb.from('marcas').delete().eq('id', m.id)); toast('Marca apagada.'); desenharTela(); } : null,
+    onApagar: m ? async function () {
+      await gravar('marcas', sb.from('marcas').delete().eq('id', m.id));
+      try { await sb.from('marcados').delete().eq('chave', 'marca:' + m.id); } catch (e) { /* só limpeza da estrela */ }
+      toast('Marca apagada.'); desenharTela();
+    } : null,
     textoApagar: 'Apagar esta marca da sua base? Não dá para desfazer.'
   });
 }
