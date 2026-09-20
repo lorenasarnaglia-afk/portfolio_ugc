@@ -169,6 +169,8 @@ tbody tr:hover td{background:rgba(59,36,22,.035)}
 td.num,th.num{text-align:right}
 td.nb{white-space:nowrap}
 td a .i{vertical-align:-3px;margin-right:2px}
+th.col-marca,td.col-marca{min-width:230px}
+th.col-tel,td.col-tel{width:1%;max-width:150px;white-space:normal}
 td.obs{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--azul)}
 td.acoes{white-space:nowrap;text-align:right}
 .linkbtn{background:none;border:0;padding:0;font-weight:600;text-align:left;cursor:pointer;color:var(--chumbo)}
@@ -1166,7 +1168,7 @@ function desenharMarcas() {
     alvo.innerHTML = '<div class="cartao"><p class="vazio">' + (estado.marcasSoFav && !fav.size ? 'Você ainda não favoritou nenhuma marca. Clique na estrela ao lado do nome para fixar a marca no topo.' : 'Nenhuma marca encontrada com essa busca ou filtro.') + '</p></div>';
     return;
   }
-  alvo.innerHTML = '<div class="rolagem"><table><thead><tr>' + (estado.colSel ? '<th class="col-sel"><span class="sr">Selecionar para o disparo</span></th>' : '') + '<th class="col-estrela"><span class="sr">Favorita</span></th><th>Marca</th><th>Instagram</th><th>E-mail</th><th>Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="col-lixo"><span class="sr">Excluir</span></th></tr></thead><tbody>' +
+  alvo.innerHTML = '<div class="rolagem"><table><thead><tr>' + (estado.colSel ? '<th class="col-sel"><span class="sr">Selecionar para o disparo</span></th>' : '') + '<th class="col-estrela"><span class="sr">Favorita</span></th><th class="col-marca">Marca</th><th>Instagram</th><th>E-mail</th><th class="col-tel">Telefone</th><th>Situação</th><th>Observação</th><th>Último contato</th><th class="col-lixo"><span class="sr">Excluir</span></th></tr></thead><tbody>' +
     lista.map(function (m) {
       var u = usuarioInsta(m.instagram), w = linkWhats(m.telefone);
       var eFav = fav.has(String(m.id));
@@ -1174,10 +1176,10 @@ function desenharMarcas() {
       return '<tr data-id="' + esc(m.id) + '"' + ((eFav || m.selecionada) ? ' class="' + (eFav ? 'fav ' : '') + (m.selecionada ? 'sel' : '') + '"' : '') + '>' +
         (estado.colSel ? '<td class="col-sel"><input type="checkbox" data-sel="1"' + (m.selecionada ? ' checked' : '') + (semEmail ? ' disabled title="Marca de exemplo"' : (prEmailOk(m.email) ? ' title="Selecionar para o disparo de e-mails"' : ' title="Selecionar (esta marca não tem e-mail, então não recebe o disparo)"')) + ' aria-label="Selecionar ' + esc(m.nome) + ' para o disparo"></td>' : '') +
         '<td class="col-estrela"><button class="ib estrela' + (eFav ? ' on' : '') + '" type="button" data-fav="1" aria-pressed="' + eFav + '" aria-label="' + (eFav ? 'Tirar dos favoritos: ' : 'Favoritar: ') + esc(m.nome) + '" title="' + (eFav ? 'Tirar dos favoritos' : 'Favoritar e fixar no topo') + '">' + ic('estrela') + '</button></td>' +
-        '<td><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
+        '<td class="col-marca"><button class="linkbtn" type="button" data-acao="editar">' + esc(m.nome) + '</button>' + (m.exemplo ? '<span class="pil p-exemplo">exemplo</span>' : '') + '</td>' +
         '<td class="nb">' + (u ? '<a href="https://instagram.com/' + esc(u) + '" target="_blank" rel="noopener" title="Abrir o Instagram">' + ic('insta') + ' @' + esc(u) + '</a>' : esc(m.instagram)) + '</td>' +
         '<td class="nb">' + (m.email ? '<a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' : '') + '</td>' +
-        '<td class="nb">' + esc(m.telefone) + (w ? ' <a class="ib" href="' + esc(w) + '" target="_blank" rel="noopener" aria-label="Abrir o WhatsApp de ' + esc(m.nome) + '" title="Abrir o WhatsApp">' + ic('whats') + '</a>' : '') + '</td>' +
+        '<td class="col-tel">' + esc(m.telefone) + (w ? ' <a class="ib" href="' + esc(w) + '" target="_blank" rel="noopener" aria-label="Abrir o WhatsApp de ' + esc(m.nome) + '" title="Abrir o WhatsApp">' + ic('whats') + '</a>' : '') + '</td>' +
         '<td>' + pilSituacao(m.situacao) + '</td>' +
         '<td class="obs" title="' + esc(m.obs) + '">' + esc(m.obs) + '</td>' +
         '<td class="nb">' + fmtData(m.ultimo_contato) + '</td>' +
