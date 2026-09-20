@@ -257,6 +257,17 @@ tr.escondido td{opacity:.5}
 .modal-rodape .espaco{flex:1}
 
 /* ---------- Importar planilha ---------- */
+.modal.imp-modal-origem{max-width:720px}
+.imp-origens{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:640px){.imp-origens{grid-template-columns:minmax(0,1fr)}}
+.imp-origem{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px;background:#fbfaf6;border:1px solid var(--linha);border-top:3px solid var(--terracota)}
+.imp-origem h3{font-size:.9rem;font-weight:700}
+.imp-origem p{font-size:.85rem;color:var(--azul)}
+.imp-origem input[type=url]{width:100%}
+.imp-origem .erro-form{width:100%;margin-top:0}
+.imp-ajuda{font-size:.82rem;color:var(--azul)}
+.imp-ajuda summary{cursor:pointer;font-weight:600}
+.imp-ajuda ol{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
 .imp-arquivo{margin-bottom:6px;color:var(--azul);font-size:.85rem;overflow-wrap:anywhere}
 .imp-sub{margin:14px 0 6px;font-size:.68rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--azul)}
 .imp-sub span{margin-left:6px;font-weight:400;letter-spacing:0;text-transform:none}
@@ -1019,7 +1030,7 @@ async function telaMarcas(el) {
   $('#m-busca').addEventListener('input', function (e) { estado.marcasBusca = e.target.value; desenharMarcas(); });
   $('#m-filtro').addEventListener('change', function (e) { estado.marcasFiltro = e.target.value; desenharMarcas(); });
   $('#m-novo').addEventListener('click', function () { formMarca(null); });
-  $('#m-importar').addEventListener('click', function () { $('#m-arquivo').value = ''; $('#m-arquivo').click(); });
+  $('#m-importar').addEventListener('click', escolherOrigemImportacao);
   $('#m-arquivo').addEventListener('change', function (e) { abrirImportacao(e.target.files && e.target.files[0]); });
   $('#m-csv').addEventListener('click', function () {
     var linhas = estado.marcas.filter(function (m) { return !m.exemplo; }).map(function (m) {
@@ -1281,6 +1292,75 @@ function construirImport(dados, mapa, opc, cab) {
   return { novas: novas, repetidas: repetidas, semNome: semNome };
 }
 
+/* ---------- Google Planilhas: a planilha precisa estar compartilhada como "Qualquer pessoa com o link" ---------- */
+function urlsPlanilhaGoogle(txt) {
+  txt = String(txt || '').trim();
+  var gid = txt.match(/[#?&]gid=(\d+)/);
+  var pub = txt.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/[\w-]+\/pub/i);
+  if (pub) return [txt.split('?')[0].replace(/pubhtml$/i, 'pub') + '?output=csv' + (gid ? '&gid=' + gid[1] : '')];
+  var m = txt.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([\w-]+)/i);
+  if (!m) return [];
+  var base = 'https://docs.google.com/spreadsheets/d/' + m[1];
+  return [
+    base + '/export?format=csv' + (gid ? '&gid=' + gid[1] : ''),
+    base + '/gviz/tq?tqx=out:csv' + (gid ? '&gid=' + gid[1] : '')
+  ];
+}
+async function buscarPlanilhaGoogle(link) {
+  var urls = urlsPlanilhaGoogle(link);
+  if (!urls.length) throw new Error('Esse link não parece ser de uma planilha do Google. Ele começa com https://docs.google.com/spreadsheets/d/...');
+  for (var i = 0; i < urls.length; i++) {
+    try {
+      var r = await fetch(urls[i]);
+      var t = await r.text();
+      if (r.ok && t && !/^\s*<(!doctype|html)/i.test(t)) return t;
+    } catch (e) { /* planilha privada: o Google bloqueia a leitura */ }
+  }
+  throw new Error('Não consegui abrir essa planilha. Confira se ela está compartilhada como "Qualquer pessoa com o link" (botão Compartilhar > Acesso geral). Se preferir, baixe como CSV e use "Escolher arquivo".');
+}
+
+/* Primeira janela: de onde vem a planilha? */
+function escolherOrigemImportacao() {
+  var m = abrirModal(
+    '<div class="modal-topo"><h2>Importar planilha de marcas</h2><button class="ib" type="button" data-fechar aria-label="Fechar">' + ic('x') + '</button></div>' +
+    '<div class="imp-origens">' +
+      '<div class="imp-origem"><h3>Arquivo do computador</h3>' +
+        '<p>Um arquivo CSV, salvo do Excel ou do Google Planilhas.</p>' +
+        '<button class="btn primario" type="button" data-arquivo>' + ic('subir') + 'Escolher arquivo CSV</button></div>' +
+      '<div class="imp-origem"><h3>Google Planilhas</h3>' +
+        '<p>Cole o link da planilha. Ela precisa estar compartilhada como <b>"Qualquer pessoa com o link"</b>. Pode ser só como leitor.</p>' +
+        '<input type="url" id="imp-link" placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off" aria-label="Link da planilha do Google">' +
+        '<p class="erro-form" id="imp-erro-link" role="alert" hidden></p>' +
+        '<button class="btn primario" type="button" data-sheets>' + ic('baixar') + 'Buscar planilha</button>' +
+        '<details class="imp-ajuda"><summary>Como compartilhar a planilha</summary><ol>' +
+          '<li>Abra a planilha e clique em <b>Compartilhar</b>.</li>' +
+          '<li>Em <b>Acesso geral</b>, escolha <b>Qualquer pessoa com o link</b> (como Leitor).</li>' +
+          '<li>Clique em <b>Copiar link</b> e cole aqui.</li>' +
+          '<li>Se a planilha tiver várias abas, abra a aba certa antes de copiar o link.</li>' +
+        '</ol></details></div>' +
+    '</div>');
+  m.classList.add('imp-modal-origem');
+  m.querySelector('[data-arquivo]').addEventListener('click', function () {
+    var inp = document.getElementById('m-arquivo');
+    inp.value = ''; inp.click();
+  });
+  var campo = m.querySelector('#imp-link'), erro = m.querySelector('#imp-erro-link'), btn = m.querySelector('[data-sheets]');
+  async function buscar() {
+    erro.hidden = true;
+    if (!campo.value.trim()) { erro.textContent = 'Cole o link da planilha.'; erro.hidden = false; campo.focus(); return; }
+    btn.disabled = true; btn.textContent = 'Buscando...';
+    try {
+      var texto = await buscarPlanilhaGoogle(campo.value);
+      prepararImportacao(texto, 'Google Planilhas');
+    } catch (err) {
+      erro.textContent = err.message || 'Não consegui abrir essa planilha.'; erro.hidden = false;
+      btn.disabled = false; btn.innerHTML = ic('baixar') + 'Buscar planilha';
+    }
+  }
+  btn.addEventListener('click', buscar);
+  campo.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); buscar(); } });
+}
+
 async function abrirImportacao(arquivo) {
   if (!arquivo) return;
   var msgExcel = 'Esse é um arquivo do Excel. Abra ele, escolha Arquivo > Salvar como > CSV e suba o CSV aqui.';
@@ -1289,6 +1369,11 @@ async function abrirImportacao(arquivo) {
   var texto;
   try { texto = decodificarArquivo(await arquivo.arrayBuffer()); } catch (e) { toast('Não consegui ler esse arquivo.', true); return; }
   if (texto.slice(0, 2) === 'PK') { toast(msgExcel, true); return; }
+  prepararImportacao(texto, arquivo.name);
+}
+
+/* Recebe o texto do CSV (de um arquivo ou do Google Planilhas), entende as colunas e abre a prévia */
+function prepararImportacao(texto, origem) {
   texto = texto.replace(/^﻿/, '');
   var sep, mSep = texto.match(/^sep=(.)\r?\n/i);
   if (mSep) { sep = mSep[1]; texto = texto.slice(mSep[0].length); } else sep = detectarSep(texto);
@@ -1308,7 +1393,7 @@ async function abrirImportacao(arquivo) {
   preparar();
 
   var html = '<div class="modal-topo"><h2>Importar planilha de marcas</h2><button class="ib" type="button" data-fechar aria-label="Fechar">' + ic('x') + '</button></div>' +
-    '<p class="imp-arquivo"><b>' + esc(arquivo.name) + '</b> · ' + linhas.length + ' linhas lidas' + (cortou ? ' (só as 5.000 primeiras)' : '') + '</p>' +
+    '<p class="imp-arquivo"><b>' + esc(origem) + '</b> · ' + linhas.length + ' linhas lidas' + (cortou ? ' (só as 5.000 primeiras)' : '') + '</p>' +
     '<div class="imp-sub">Como entendi as colunas <span>confira e mude se precisar</span></div>' +
     '<div class="grade-form imp-mapa" id="imp-mapa"></div>' +
     '<div class="imp-opcoes">' +
